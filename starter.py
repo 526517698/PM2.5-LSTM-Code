@@ -104,8 +104,7 @@ class PMTraining:
         self.x_testing = np.array(x[int(len(data)*0.8):])
         self.y_testing = np.array(y[int(len(data)*0.8):])
 
-
-
+        # Place holder for input and target data
         self.inputs = tf.placeholder(tf.float32, [batch_size, window_size, 1]) # for x
         self.targets = tf.placeholder(tf.float32, [batch_size, 1]) # for y
 
@@ -136,14 +135,18 @@ class PMTraining:
       
         return x, y
 
+    # The following code are for creating RNN network
     def rnn_training(self):
+        # The input weight, hidden layer and bias
         weights_input_gate = tf.Variable(tf.truncated_normal([1,self.hidden_layer], stddev = 0.05))
         weights_input_hidden = tf.Variable(tf.truncated_normal([self.hidden_layer, self.hidden_layer], stddev=0.05))
         bias_input = tf.Variable(tf.zeros([self.hidden_layer]))
 
+        # The output weight and bias
         weights_output = tf.Variable(tf.truncated_normal([self.hidden_layer, 1], stddev=0.05))
         bias_output_layer = tf.Variable(tf.zeros([1]))
 
+        # get the output vector
         outputs = []
         for i in range(self.batch_size):
             batch_state = np.zeros([1, self.hidden_layer], dtype = np.float32)
@@ -180,6 +183,7 @@ class PMTraining:
         weights_output = tf.Variable(tf.truncated_normal([self.hidden_layer, 1], stddev=0.05))
         bias_output_layer = tf.Variable(tf.zeros([1]))
 
+        # get the output vector
         outputs = []
         for i in range(self.batch_size):
             batch_state = np.zeros([1, self.hidden_layer], dtype = np.float32)
@@ -198,27 +202,26 @@ class PMTraining:
         return outputs
 
     def train_and_test(self, outputs):
+
+        # calculate losses
         losses = []
         for i in range(len(outputs)):
             losses.append(tf.losses.mean_squared_error(tf.reshape(self.targets[i], (-1, 1)), outputs[i]))
 
         loss = tf.reduce_mean(losses)
 
-
+        # set up optimizer to minimize loss
         gradients = tf.gradients(loss, tf.trainable_variables())
         clipped, _ = tf.clip_by_global_norm(gradients, self.clip_margin)
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
         trained_optimizer = optimizer.apply_gradients(zip(gradients, tf.trainable_variables()))
 
-        ##config = tf.ConfigProto(log_device_placement=True)
-        ##config.gpu_options.allow_growth = True
-        ##config.gpu_options.per_process_gpu_memory_fraction = 0.9
-
+        # set up session
         session = tf.Session(config=tf.ConfigProto(log_device_placement=True))
         session.run(tf.global_variables_initializer())
 
         for i in range(self.epochs):
-            
+            # session run for testing data
             z = 0
             trained_scores = []
             epoch_loss_training = []
@@ -232,25 +235,25 @@ class PMTraining:
                 trained_scores.append(o)
                 
                 z += self.batch_size
-
                 
-            h = 0
-            tested_scores = []
-            epoch_loss_testing = []
-            while (h + self.batch_size) <= len(self.x_testing):
-                x_batch_testing = self.x_testing[h:h+self.batch_size]
-                y_batch_testing = self.y_testing[h:h+self.batch_size]
-
-                o_testing, c_testing, _testing = session.run([outputs, loss, trained_optimizer], feed_dict = {self.inputs:x_batch_testing, self.targets:y_batch_testing})
-                
-                epoch_loss_testing.append(c_testing)
-                tested_scores.append(o_testing)
-
-                h+=self.batch_size
-            #df = df.append({'Window_Size':self.window_size, 'hidden_layer_Size':self.hidden_layer, 'Epoch':i, 'Loss':np.mean(epoch_loss)}, ignore_index = True)
             if (i % 30) == 0:
-                print("{}:{}".format(self.window_size, self.hidden_layer), "Epoch {}/{}".format(i, self.epochs), " Current training loss:{}".format(np.mean(epoch_loss_training)), " Current testing loss:{}".format(np.mean(epoch_loss_testing)))
+                print("{}:{}".format(self.window_size, self.hidden_layer), "Epoch {}/{}".format(i, self.epochs), " Current training loss:{}".format(np.mean(epoch_loss_training)))
 
-        
+        # testing
+        h = 0
+        tested_scores = []
+        epoch_loss_testing = []
+        while (h + self.batch_size) <= len(self.x_testing):
+            x_batch_testing = self.x_testing[h:h+self.batch_size]
+            y_batch_testing = self.y_testing[h:h+self.batch_size]
+
+            o_testing, c_testing, _testing = session.run([outputs, loss, trained_optimizer], feed_dict = {self.inputs:x_batch_testing, self.targets:y_batch_testing})
+                
+            epoch_loss_testing.append(c_testing)
+            tested_scores.append(o_testing)
+
+            h+=self.batch_size
+        print("{}:{}".format(self.window_size, self.hidden_layer), " testing loss:{}".format(np.mean(epoch_loss_testing)))
+
         
 pmt1 = PMTraining(batch_size, window_size, hidden_layer, epochs, pd_beijing_day)
