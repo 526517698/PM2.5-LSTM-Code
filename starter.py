@@ -81,7 +81,7 @@ print(len(pd_beijing_day))
 
 
 # Simple RNN:
-
+# this is for storing training & testing result
 df = pd.DataFrame(columns = ['batch_size',
                              'window_size',
                              'hidden_layer',
@@ -180,9 +180,9 @@ class PMTraining:
         y = []
         i = 0
       
-        while (i + self.window_size <= len(data)-1):
-            x.append(data[i:i+self.window_size])
-            y.append(data[i+self.window_size])
+        while (i + window_size <= len(data)-1):
+            x.append(data[i:i+window_size])
+            y.append(data[i+window_size])
             i+=1
       
         assert len(x) == len(y)
@@ -191,11 +191,10 @@ class PMTraining:
     
 
 #epochs = 200
+# 用以下数据的话会得出相对而言最好的结果，在这些数据上左右浮动50左右都不会出现特别大的精准度变化（< 0.0001）
 batch_size = 256  # This is the number of windows of data we are passing at once.
 window_size = 24 # The number of days we consider to predict the bitcoin price for our case.
 hidden_layer = 200 # This is the number of units we use in our LSTM cell.
-clip_margin = 4 # This is to prevent exploding the gradient — we use clipper to clip gradients below above this margin.
-learning_rate = 0.001 # This is a an optimization method that aims to reduce the loss function.
 epochs = 20 # This is the number of iterations (forward and back propagation) our model needs to make.
 opt = 'adam' # this is the optimizar for keras model
 actv = "tanh" # this is the activition function for the output layer
