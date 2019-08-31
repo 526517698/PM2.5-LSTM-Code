@@ -18,11 +18,11 @@ pmdata_beijing = pmdata_beijing.drop(columns = "PM_Dongsi")
 pd_beijing = pmdata_beijing["PM_US Post"].values
 
 # this is the new data with basis of day instead of hours
-#pd_beijing_day = np.ndarray(shape = (int(len(pd_beijing)/24), ), dtype = float, order = "F")
+pd_beijing_day = np.ndarray(shape = (int(len(pd_beijing)/24), ), dtype = float, order = "F")
 
 # change the data from hourly basis to daily basis
 z = 0
-'''
+
 for i in range(24, len(pd_beijing), 24):
     temp = pd_beijing[z*24:i]
     temp = temp[~np.isnan(temp)]
@@ -30,7 +30,7 @@ for i in range(24, len(pd_beijing), 24):
     avg_day = np.sum(temp) / len(temp)
     pd_beijing_day[z] = avg_day
     z+=1
-
+    
 # Print the data
 plt.figure(figsize = (30,7), frameon = False, facecolor = 'brown', edgecolor = 'blue')
 plt.title("PM2.5 of Beijing from 2010 to 2015")
@@ -56,7 +56,6 @@ plt.plot(rolstd, color = "black", label = "Rolling Std")
 plt.legend(loc = "best")
 plt.title("Rolling Mean & Standard Deviation")
 plt.show(block = False)
-'''
 
 
 '''
@@ -73,16 +72,9 @@ plt.show(block = False)
 print("GPU Available: ", tf.test.is_gpu_available())
 
 # remove any NAN entry in given data to avoid errors
-pd_beijing_day = pd_beijing[~np.isnan(pd_beijing)]
+pd_beijing_day = pd_beijing_day[~np.isnan(pd_beijing_day)]
 
 print(len(pd_beijing_day))
-
-batch_size = 256  # This is the number of windows of data we are passing at once.
-window_size = 24 # The number of days we consider to predict the bitcoin price for our case.
-hidden_layer = 200 # This is the number of units we use in our LSTM cell.
-clip_margin = 4 # This is to prevent exploding the gradient — we use clipper to clip gradients below above this margin.
-learning_rate = 0.001 # This is a an optimization method that aims to reduce the loss function.
-epochs = 300 # This is the number of iterations (forward and back propagation) our model needs to make.
 
 
 
@@ -104,13 +96,6 @@ class PMTraining:
 
     def __init__(self, batch_size, window_size, hidden_layer, epochs, data, opt, actv, units):
         # set up basic value
-        self.batch_size = batch_size # This is the number of windows of data we are passing at once.
-        self.window_size = window_size # The number of days we consider to predict the bitcoin price for our case.
-        self.hidden_layer = hidden_layer # This is the number of units we use in our LSTM cell.
-        self.clip_margin = 4 # This is to prevent exploding the gradient — we use clipper to clip gradients below above this margin.
-        self.learning_rate = 0.001 # This is a an optimization method that aims to reduce the loss function.
-        self.epochs = epochs # This is the number of iterations (forward and back propagation) our model needs to make.
-
         data_scaler = MinMaxScaler(feature_range=(0, 1))
 
         #data = data / np.linalg.norm(data)
@@ -125,20 +110,22 @@ class PMTraining:
 
         x_testing = np.array(x[int(len(data)*0.8):])
         y_testing = np.array(y[int(len(data)*0.8):])
+        
         print(x_training.shape)
         print(y_training.shape)
-
+        
+        # merge the x and y data to fit the training model
         training_dataset = tf.data.Dataset.from_tensor_slices((x_training, y_training))
         training_dataset = training_dataset.cache().shuffle(buffer_size = 10000).batch(batch_size).repeat()
 
         testing_dataset = tf.data.Dataset.from_tensor_slices((x_testing, y_testing))
         testing_dataset = testing_dataset.cache().shuffle(buffer_size = 10000).batch(batch_size).repeat()
 
-
+        # model for LSTM
         lstm_models = tf.keras.models.Sequential()
         lstm_models.add(tf.keras.layers.LSTM(units, input_shape=x_training.shape[1:]))
         lstm_models.add(tf.keras.layers.Dense(1))
-        #lstm_models.add(tf.keras.layers.Activation(actv))
+        #lstm_models.add(tf.keras.layers.Activation(actv)) # enable this may cause accuracy to go down
 
         lstm_models.compile(optimizer=opt, loss='mae')
 
@@ -147,7 +134,8 @@ class PMTraining:
                                       steps_per_epoch=hidden_layer,
                                       validation_data=testing_dataset,
                                       validation_steps=50)
-
+        
+        # plot for lstm prediction result
         lstm_result = lstm_models.predict(x_testing)
         actual_result = y_testing
         plt.xlabel("Days")
@@ -157,11 +145,12 @@ class PMTraining:
         plt.legend()
         plt.show()
 
-       
+
+        # model for RNN training
         rnn_models = tf.keras.models.Sequential()
         rnn_models.add(tf.keras.layers.SimpleRNN(units, input_shape=x_training.shape[1:]))
         rnn_models.add(tf.keras.layers.Dense(1))
-        #rnn_models.add(tf.keras.layers.Activation(actv))
+        #rnn_models.add(tf.keras.layers.Activation(actv)) # enable this may cause accuracy to go down
 
         rnn_models.compile(optimizer=opt, loss='mae')
 
@@ -171,6 +160,7 @@ class PMTraining:
                                       validation_data=testing_dataset,
                                       validation_steps=50)
 
+        # plot for RNN prediction result
         rnn_result = rnn_models.predict(x_testing)
         actual_result = y_testing
         plt.xlabel("Days")
@@ -180,13 +170,10 @@ class PMTraining:
         plt.legend()
         plt.show()
 
-        
-        #self.training_loss = self.lstm_history.history['loss'][-1]
-        #self.testing_loss = self.lstm_history.history['val_loss'][-1]
 
         print(self.rnn_history.history.keys())
 
-                
+    # this is the function for modifying the data to x(L W H) and y(L H)
     def window_data(self, data):
         data = data.reshape(len(data), 1)
         x = []
@@ -204,9 +191,15 @@ class PMTraining:
     
 
 #epochs = 200
-opt = 'adam'
-actv = "tanh"
-units = 100
-epochs = 100
+batch_size = 256  # This is the number of windows of data we are passing at once.
+window_size = 24 # The number of days we consider to predict the bitcoin price for our case.
+hidden_layer = 200 # This is the number of units we use in our LSTM cell.
+clip_margin = 4 # This is to prevent exploding the gradient — we use clipper to clip gradients below above this margin.
+learning_rate = 0.001 # This is a an optimization method that aims to reduce the loss function.
+epochs = 20 # This is the number of iterations (forward and back propagation) our model needs to make.
+opt = 'adam' # this is the optimizar for keras model
+actv = "tanh" # this is the activition function for the output layer
+units = 50 # this is the number of dimension of LSTM layer
+epochs = 20 # number of time we are training this model
 pmt1 = PMTraining(batch_size, window_size, hidden_layer, epochs, pd_beijing_day, opt, actv, units)
     
